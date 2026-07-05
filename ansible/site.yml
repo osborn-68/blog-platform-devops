@@ -1,0 +1,174 @@
+---
+# =========================================================
+# Play 1: Install Docker + Docker Compose on the App node
+# =========================================================
+- name: Configure Application Node
+  hosts: app
+  become: yes
+  vars:
+    dockerhub_user: "me0ta123"
+    db_host: "{{ groups['db'][0] }}"   # the DB node's private IP, taken straight from inventory.ini
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install prerequisite packages
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - gnupg
+        - lsb-release
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker apt repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker Engine
+      apt:
+        name: docker-ce
+        update_cache: yes
+        state: present
+
+    - name: Install Docker Compose plugin
+      apt:
+        name: docker-compose-plugin
+        state: present
+
+    - name: Ensure Docker service is running
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Create app directory
+      file:
+        path: /home/ubuntu/blog-app
+        state: directory
+        owner: ubuntu
+
+    - name: Copy docker-compose.yml to app node
+      template:
+        src: templates/docker-compose.yml.j2
+        dest: /home/ubuntu/blog-app/docker-compose.yml
+        owner: ubuntu
+
+    - name: Pull latest images and start containers
+      community.docker.docker_compose_v2:
+        project_src: /home/ubuntu/blog-app
+        pull: always
+        state: present
+
+    - name: Verify containers are running
+      command: docker ps
+      register: docker_ps_result
+
+    - debug:
+        var: docker_ps_result.stdout_lines
+
+# =========================================================
+# Play 2: Install MySQL on the Database node
+# =========================================================
+- name: Configure Database Node
+  hosts: db
+  become: yes
+  vars:
+    mysql_root_password: "RootPass123!"
+    mysql_db_name: "blogdb"
+    mysql_user: "bloguser"
+    mysql_user_password: "blogpass"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install MySQL server and Python connector
+      apt:
+        name:
+          - mysql-server
+          - python3-pymysql
+        state: present
+
+    - name: Ensure MySQL is running
+      service:
+        name: mysql
+        state: started
+        enabled: yes
+
+    - name: Set MySQL root password
+      community.mysql.mysql_user:
+        name: root
+        password: "{{ mysql_root_password }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        check_implicit_admin: yes
+        state: present
+
+    - name: Create blog database
+      community.mysql.mysql_db:
+        name: "{{ mysql_db_name }}"
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        state: present
+
+    - name: Create application DB user
+      community.mysql.mysql_user:
+        name: "{{ mysql_user }}"
+        password: "{{ mysql_user_password }}"
+        priv: "{{ mysql_db_name }}.*:ALL"
+        host: "%"
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        state: present
+
+    - name: Allow remote connections (bind to all interfaces)
+      lineinfile:
+        path: /etc/mysql/mysql.conf.d/mysqld.cnf
+        regexp: '^bind-address'
+        line: 'bind-address = 0.0.0.0'
+      notify: restart mysql
+
+    - name: Create posts table
+      community.mysql.mysql_query:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_db: "{{ mysql_db_name }}"
+        query: >
+          CREATE TABLE IF NOT EXISTS posts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            body TEXT
+          )
+
+    - name: Insert a sample post
+      community.mysql.mysql_query:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_db: "{{ mysql_db_name }}"
+        query: >
+          INSERT INTO posts (title, body)
+          SELECT 'Hello World', 'This post was seeded by Ansible.'
+          WHERE NOT EXISTS (SELECT 1 FROM posts)
+
+  handlers:
+    - name: restart mysql
+      service:
+        name: mysql
+        state: restarted

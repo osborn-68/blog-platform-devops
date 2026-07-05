@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cloud-Native Blog</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 700px; margin: 60px auto; color: #222; }
+    h1 { color: #2c3e50; }
+    #posts { margin-top: 20px; }
+    .post { padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <h1>🚀 My Cloud-Native Blog</h1>
+  <p>Deployed with Terraform + Ansible + Jenkins.</p>
+  <div id="posts">Loading posts from backend...</div>
+
+  <script>
+    // Replace with your app node's public IP if calling from a different origin
+    fetch('/api/posts')
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('posts').innerHTML =
+          data.map(p => `<div class="post"><b>${p.title}</b><p>${p.body}</p></div>`).join('');
+      })
+      .catch(() => {
+        document.getElementById('posts').innerText = 'Could not reach backend API.';
+      });
+  </script>
+</body>
+</html>

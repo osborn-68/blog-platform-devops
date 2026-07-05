@@ -1,0 +1,20 @@
+version: "3.8"
+services:
+  frontend:
+    image: {{ dockerhub_user }}/blog-frontend:latest
+    ports:
+      - "80:80"
+    restart: always
+    depends_on:
+      - backend
+
+  backend:
+    image: {{ dockerhub_user }}/blog-backend:latest
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_HOST={{ db_host }}
+      - DB_USER=bloguser
+      - DB_PASSWORD=blogpass
+      - DB_NAME=blogdb
+    restart: always

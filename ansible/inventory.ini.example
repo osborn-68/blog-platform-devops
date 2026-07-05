@@ -1,0 +1,19 @@
+# Copy this to inventory.ini and fill in the IPs from `terraform output`.
+# NOTE: This inventory is meant to be used FROM THE BASTION NODE.
+# You SSH into the bastion first, put your private key there, then run
+# ansible-playbook from inside the bastion. Since the bastion is already
+# inside the VPC, it can reach the app/db private IPs directly - no jump host needed.
+
+[app]
+<APP_PRIVATE_IP>
+
+[db]
+<DB_PRIVATE_IP>
+
+[app:vars]
+ansible_user=ubuntu
+ansible_ssh_private_key_file=~/my-ec2-keypair.pem
+
+[db:vars]
+ansible_user=ubuntu
+ansible_ssh_private_key_file=~/my-ec2-keypair.pem

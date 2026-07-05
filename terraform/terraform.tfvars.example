@@ -1,0 +1,4 @@
+# Copy this file to terraform.tfvars and fill in your real values
+aws_region = "us-east-1"
+key_name   = "my-ec2-keypair"      # must already exist in AWS Console > EC2 > Key Pairs
+my_ip      = "103.21.45.10/32"     # get yours from https://checkip.amazonaws.com then add /32
